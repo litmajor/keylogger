@@ -1,0 +1,44 @@
+# 🛡️ Rust System Event Logger
+
+A powerful system-level keylogger and event tracker built in Rust for Windows. This tool logs keyboard input, mouse events, clipboard updates, and window switches — useful for building introspective journaling tools, personal productivity analytics, or security audit systems.
+
+> ⚠️ **Disclaimer:** This project is intended for educational and authorized use only. Installing or running a keylogger on a system without the owner's informed consent is **illegal and unethical**. Use responsibly.
+
+---
+
+## 📦 Features
+
+- 🧠 **Keyboard Logging**  
+  Tracks all key presses, including support for Shift, Caps Lock, and function keys.
+
+- 🖱️ **Mouse Tracking**  
+  Logs left and right mouse button clicks along with their screen coordinates.
+
+- 📋 **Clipboard Monitoring**  
+  Detects when the clipboard is updated and logs its content (text only).
+
+- 🪟 **Window Focus Logging**  
+  Logs when the active window changes, capturing the window title.
+
+- 🧵 **Thread-Safe File Output**  
+  Uses buffered writing with `Mutex` and `lazy_static` to safely handle concurrent writes.
+
+- ✅ **Graceful Shutdown**  
+  Press `Ctrl + C` to stop logging and exit cleanly.
+
+---
+
+## 🛠️ Installation
+
+### 🔧 Prerequisites
+
+- Rust (stable) — [Install Rust](https://rustup.rs)
+- Windows OS (Tested on Windows 10/11)
+- Administrator privileges (required for system-wide hooks)
+
+### ⚙️ Build
+
+```bash
+git clone https://github.com/litmajor/keylogger.git
+cd rust-system-event-logger
+cargo build --release

