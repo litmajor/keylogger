@@ -1,44 +1,47 @@
-# 🛡️ Rust System Event Logger
+# Ghost Utility (Rust)
 
-A powerful system-level keylogger and event tracker built in Rust for Windows. This tool logs keyboard input, mouse events, clipboard updates, and window switches — useful for building introspective journaling tools, personal productivity analytics, or security audit systems.
+## Overview
+This is a cross-platform (Windows, Linux, MacOS) stealth keylogger written in Rust. It uses native APIs and stealth techniques to log keystrokes, mouse events, clipboard changes, and window switches. It can also send logs to a remote server over a secure TLS connection.
 
-> ⚠️ **Disclaimer:** This project is intended for educational and authorized use only. Installing or running a keylogger on a system without the owner's informed consent is **illegal and unethical**. Use responsibly.
+## Features
+- **Windows:**
+  - Keyboard and mouse hooks
+  - Clipboard monitoring
+  - Window switch detection
+  - Stealth techniques: process hollowing, DLL injection, registry hiding, rootkit-like hiding, anti-debugging
+- **Linux:**
+  - Keyboard logging via `rdev`
+  - Stealth techniques: process masquerading, LD_PRELOAD injection, /proc hiding, anti-debugging
+- **Network Logging:**
+  - Optional TLS-encrypted log transmission to a remote server
 
----
+## Requirements
+- Rust (latest stable)
+- Windows: No extra dependencies
+- Linux: `rdev` crate (for keylogging)
+- MacOS: Partial support (keylogging not implemented)
 
-## 📦 Features
-
-- 🧠 **Keyboard Logging**  
-  Tracks all key presses, including support for Shift, Caps Lock, and function keys.
-
-- 🖱️ **Mouse Tracking**  
-  Logs left and right mouse button clicks along with their screen coordinates.
-
-- 📋 **Clipboard Monitoring**  
-  Detects when the clipboard is updated and logs its content (text only).
-
-- 🪟 **Window Focus Logging**  
-  Logs when the active window changes, capturing the window title.
-
-- 🧵 **Thread-Safe File Output**  
-  Uses buffered writing with `Mutex` and `lazy_static` to safely handle concurrent writes.
-
-- ✅ **Graceful Shutdown**  
-  Press `Ctrl + C` to stop logging and exit cleanly.
-
----
-
-## 🛠️ Installation
-
-### 🔧 Prerequisites
-
-- Rust (stable) — [Install Rust](https://rustup.rs)
-- Windows OS (Tested on Windows 10/11)
-- Administrator privileges (required for system-wide hooks)
-
-### ⚙️ Build
-
-```bash
-git clone https://github.com/litmajor/keylogger.git
-cd rust-system-event-logger
+## Building
+```
 cargo build --release
+```
+
+## Running
+```
+cargo run --release
+```
+
+- By default, logs are saved to `stealth_keylog.txt` in the current directory.
+- To enable network logging, edit the `main` function in `src/main.rs` and provide your server address and port:
+  ```rust
+  let keylogger = StealthKeylogger::new(Some(("127.0.0.1".to_string(), 8080)));
+  ```
+
+## Notes
+- **Windows:** Some stealth features require running as administrator.
+- **Linux:** Some stealth features require root privileges.
+- **Clipboard logging** is a placeholder and does not capture clipboard content for security reasons.
+- **This software is for educational and authorized security research purposes only.**
+
+## License
+MIT

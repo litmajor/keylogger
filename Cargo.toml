@@ -1,11 +1,18 @@
 [package]
-name = "keylogger"
+name = "ghost-utility"
 version = "0.1.0"
 edition = "2021"
-
+description = "A utility and administration tool for Ghost OS"
+license = "MIT"
 [dependencies]
+winapi = { version = "0.3.9", features = ["winnt", "processthreadsapi", "memoryapi", "libloaderapi", "winuser"] }
+winreg = "0.50"
+libc = "0.2"
+signal-hook = "0.3"
 lazy_static = "1.5.0"
-winapi = { version = "0.3.9", features = ["winuser", "libloaderapi", "minwindef", "ntdef", "processthreadsapi", "winbase"] }
+widestring = "1.1.0"
 chrono = "0.4"
+evdev = "0.12"
+rustls = "0.21"
+whoami = "1.4"
 rdev = "0.5.3"
-widestring =  "1.1.0"
